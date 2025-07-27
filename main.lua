@@ -1,69 +1,115 @@
 local utils = require "utils"
 
-local defaultColor = {0.05, 0.05, 0.1, 1}
-local player = {
-    x = 0,
-    y = 0,
-    size = 20,
-    velX = 0,
-    velY = 0,
-}
-local mouseX, mouseY = 0, 0
+local default_color = {0.05, 0.05, 0.1, 1}
+local objects = {}
+local grid_size = {x = 100,y = 100}
+local grid_cell_size = {x = 0, y = 0}
+
+local function grid_to_window_coords(x,y)
+    local window_width, window_height = love.graphics.getDimensions()
+    return math.floor(window_width / grid_size.x * x), math.floor(window_height / grid_size.y * y)
+end
+
+local function window_to_grid_coords(x,y)
+    local window_width, window_height = love.graphics.getDimensions()
+    return math.floor(x * grid_size.x / window_width), math.floor(y * grid_size.y / window_height)
+end
+
+local function get_object(x,y)
+    for i=1, #objects do
+        local selected_object = objects[i]
+        if selected_object.x == x and selected_object.y == y then
+            return selected_object, i
+        end
+    end
+    return nil
+end
+
+local Sand = {x = 0, y = 0}
+
+function Sand:tick()
+
+    if (self.x ~= 0 or self.x ~= grid_size.x - 1) and get_object(self.x, self.y + 1) ~= nil and get_object(self.x + 1, self.y + 1) ~= nil and get_object(self.x - 1, self.y + 1) ~= nil then
+        return
+    end
+
+    if self.x ~= 0 and get_object(self.x, self.y + 1) ~= nil and get_object(self.x - 1, self.y + 1) ~= nil then
+        if self.x <= grid_size.x - 1 and self.x ~= grid_size.x - 1 then
+            self.x = self.x + 1
+        else
+            self.x = grid_size.x - 1
+        end
+
+        return
+    end
+
+    if get_object(self.x, self.y + 1) ~= nil then
+        if self.x >= 0 and self.x ~= 0 then
+            self.x = self.x - 1
+        else
+            self.x = 0
+        end
+
+        return
+    end
+
+    if self.y >= grid_size.y - 1 then
+        self.y = grid_size.y - 1
+        return
+    end
+    self.y = self.y + 1
+end
+
+function Sand:new()
+    local o = {}
+    setmetatable(o, self)
+    self.__index = self
+    objects[#objects+1] = o
+    return o
+end
 
 function love.load()
-    love.window.setMode(500, 500, {resizable = true})
-    player.x = love.graphics.getWidth() / 2
-    player.y = love.graphics.getHeight() / 2
+    love.window.setMode(600, 600, {resizable = true})
+    love.graphics.setBackgroundColor(default_color)
 
-    love.graphics.setBackgroundColor(defaultColor)
-
-    love.graphics.circle("fill", player.x, player.y, player.size)
+    local window_width, window_height = love.graphics.getDimensions()
+    grid_cell_size.x = window_width / grid_size.x
+    grid_cell_size.y = window_height / grid_size.y
 
     print("loaded")
 end
 
-local direction = {0, 0, 0, 0}
-function love.keypressed(key)
-    if key == "w" then direction[1] = 1 end
-    if key == "s" then direction[2] = 1 end
-    if key == "a" then direction[3] = 1 end
-    if key == "d" then direction[4] = 1 end
+function love.mousepressed(x,y, button)
+    local object = Sand:new()
+    object.x, object.y = window_to_grid_coords(x,y)
+    objects[#objects+1] = object
 end
 
-function love.keyreleased(key)
-    if key == "w" then direction[1] = 0 end
-    if key == "s" then direction[2] = 0 end
-    if key == "a" then direction[3] = 0 end
-    if key == "d" then direction[4] = 0 end
-end
-
+local time = 0
 function love.update(dt)
-    local dx = direction[4] - direction[3]
-    local dy = direction[2] - direction[1]
+    time = time + 1
+    if time % 5 == 0 then
+        -- for i=1,10 do
+        --     local sand = Sand:new()
+        --     sand.x = math.random(grid_size.y)
+        --     sand.y = 3
+        --     objects[#objects+1] = sand
+        -- end
 
-    player.velX = (player.velX + dx * 20) * 0.95
-    player.velY = (player.velY + dy * 20) * 0.95
-
-    player.x = player.x + (player.velX * dt)
-    player.y = player.y + (player.velY * dt)
-
-    if player.x > love.graphics.getWidth() then player.x = 0 end
-    if player.y > love.graphics.getHeight() then player.y = 0 end
-    if player.x < 0 then player.x = love.graphics.getWidth() end
-    if player.y < 0 then player.y = love.graphics.getHeight() end
-
-    mouseX, mouseY = love.mouse.getPosition()
+        for i=1, #objects do
+            local selected_object = objects[i]
+            
+            selected_object:tick()
+        end
+    end
 end
 
 function love.draw()
-    love.graphics.circle("fill", player.x, player.y, player.size)
+    for i=1, #objects do
+        local selected_object = objects[i]
+        love.graphics.setColor({1,1,1,1})
 
-    local dirVectorX = mouseX - player.x
-    local dirVectorY = mouseY - player.y
-    local theta = math.atan2(dirVectorY, dirVectorX)
-    local dx = math.cos(theta)
-    local dy = math.sin(theta)
-
-    love.graphics.circle("fill", player.x, player.y, player.size)
-    love.graphics.circle("fill", player.x + dx * 40, player.y + dy * 40, 10)
+        local x, y = grid_to_window_coords(selected_object.x, selected_object.y)
+        love.graphics.rectangle("fill", x, y, grid_cell_size.x, grid_cell_size.y)
+    end
 end
